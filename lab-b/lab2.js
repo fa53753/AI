@@ -1,0 +1,132 @@
+class Todo {
+    constructor() {
+        this.tasks = [];
+        this.loadFromLocalStorage();
+    }
+
+    saveToLocalStorage() {
+        localStorage.setItem('todo-tasks', JSON.stringify(this.tasks));
+    }
+
+    loadFromLocalStorage() {
+        const saved = localStorage.getItem('todo-tasks');
+        if (saved) {
+            this.tasks = JSON.parse(saved);
+        }
+    }
+
+    addTask(taskText, deadline) {
+        this.tasks.push({ text: taskText, deadline: deadline });
+        this.saveToLocalStorage();
+        this.draw();
+    }
+
+    removeTask(taskText) {
+        this.tasks = this.tasks.filter(task => task.text !== taskText);
+        this.saveToLocalStorage();
+        this.draw();
+    }
+
+    editTask(oldText, newText, newDeadline) {
+        this.tasks = this.tasks.map(task => {
+            if (task.text === oldText) {
+                task.text = newText;
+                task.deadline = newDeadline;
+            }
+            return task;
+        });
+        this.saveToLocalStorage();
+        this.draw();
+    }
+
+    searchTask(searchText) {
+        const regex = new RegExp(`(${searchText})`, 'gi');
+        const filteredTasks = this.tasks
+            .filter(task => regex.test(task.text))
+            .map(task => {
+                const highlightedText = task.text.replace(regex, '<mark>$1</mark>');
+                return { ...task, highlightedText };
+            });
+        this.draw(filteredTasks);
+    }
+
+    draw(filteredTasks = this.tasks) {
+        let taskList = document.getElementById('task-list');
+        taskList.innerHTML = '';
+        filteredTasks.forEach(task => {
+            let listItem = document.createElement('li');
+            listItem.innerHTML = `
+                <span class="task-text" contenteditable="true">${task.highlightedText || task.text}</span>
+                <span class="task-deadline-text">${task.deadline}</span>
+                <input type="date" class="task-deadline" value="${task.deadline}" style="display:none;">
+                <button class="delete-task">&times;</button>
+            `;
+            taskList.appendChild(listItem);
+        });
+    }
+}
+
+let todo = new Todo();
+if (todo.tasks.length === 0) {
+    todo.tasks = [{ text: 'umyc okna', deadline: '2023-12-10' }, { text: 'zrob zakupy', deadline: '2025-11-15' }, { text: 'wyprowadz psa', deadline: '2025-10-20' }];
+    todo.saveToLocalStorage();
+}
+todo.draw();
+
+document.getElementById('add-task').addEventListener('click', function() {
+    const taskInput = document.getElementById('task-input');
+    const taskDeadline = document.getElementById('task-deadline');
+    const taskText = taskInput.textContent.trim();
+    const deadline = taskDeadline.value;
+
+    if (taskText.length >= 3) {
+        todo.addTask(taskText, deadline);
+        taskInput.textContent = '';
+        taskDeadline.value = '';
+    } else {
+        alert('Task text must be at least 3 characters long');
+    }
+});
+
+document.getElementById('task-list').addEventListener('click', function(e) {
+    if (e.target.classList.contains('delete-task')) {
+        let taskText = e.target.previousElementSibling.previousElementSibling.previousElementSibling.textContent;
+        todo.removeTask(taskText);
+    } else if (e.target.classList.contains('task-deadline-text')) {
+        e.target.style.display = 'none';
+        e.target.nextElementSibling.style.display = 'inline';
+        e.target.nextElementSibling.focus();
+    }
+});
+
+document.getElementById('task-list').addEventListener('blur', function(e) {
+    if (e.target.classList.contains('task-text') || e.target.classList.contains('task-deadline')) {
+        let listItem = e.target.parentElement;
+        let oldText = listItem.querySelector('.task-text').textContent;
+        let newText = listItem.querySelector('.task-text').textContent;
+        let newDeadline = listItem.querySelector('.task-deadline').value;
+        if (oldText !== newText || e.target.classList.contains('task-deadline')) {
+            todo.editTask(oldText, newText, newDeadline);
+        }
+        if (e.target.classList.contains('task-deadline')) {
+            e.target.style.display = 'none';
+            e.target.previousElementSibling.style.display = 'inline';
+            e.target.previousElementSibling.textContent = newDeadline;
+        }
+        if (e.target.classList.contains('task-text')) {
+            e.target.classList.remove('editing');
+            e.target.removeAttribute('contenteditable');
+        }
+    }
+}, true);
+
+document.getElementById('search').addEventListener('input', function() {
+    const searchText = this.value.trim().toLowerCase();
+    todo.searchTask(searchText);
+});
+document.getElementById('task-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault(); // Prevents the default action of the Enter key
+        document.getElementById('add-task').click(); // Triggers the click event on the Add Task button
+    }
+});
